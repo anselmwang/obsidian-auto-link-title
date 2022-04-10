@@ -7,6 +7,35 @@ import {
 } from "./settings";
 import { CheckIf } from "checkif";
 import getPageTitle from "scraper";
+declare module "obsidian" {
+    interface App {
+        isMobile: boolean;
+    }
+}
+
+// Call this method inside your plugin's `onLoad` function
+function monkeyPatchConsole(plugin: Plugin) {
+  if (!plugin.app.isMobile) {
+    return;
+  }
+  
+  const logFile = `${plugin.manifest.dir}/logs.txt`;
+  console.log(logFile);
+  const logs: string[] = [];
+  const logMessages = (prefix: string) => (...messages: unknown[]) => {
+    logs.push(`\n[${prefix}]`);
+    for (const message of messages) {
+      logs.push(String(message));
+    }
+    plugin.app.vault.adapter.write(logFile, logs.join(" "));
+  };
+
+  console.debug = logMessages("debug");
+  console.error = logMessages("error");
+  console.info = logMessages("info");
+  console.log = logMessages("log");
+  console.warn = logMessages("warn");
+}
 
 interface PasteFunction {
   (this: HTMLElement, ev: ClipboardEvent): void;
@@ -17,6 +46,7 @@ export default class AutoLinkTitle extends Plugin {
   pasteFunction: PasteFunction;
 
   async onload() {
+    monkeyPatchConsole(this);
     console.log("loading obsidian-auto-link-title");
     await this.loadSettings();
 
@@ -114,6 +144,7 @@ export default class AutoLinkTitle extends Plugin {
   }
 
   async pasteUrlWithTitle(clipboard: ClipboardEvent): Promise<void> {
+    console.log("enter pasteUrlWithTitle");
     if (!this.settings.enhanceDefaultPaste) {
       return;
     }
@@ -124,7 +155,11 @@ export default class AutoLinkTitle extends Plugin {
     let editor = this.getEditor();
     if (!editor) return;
 
+    // let clipboardTextByReadText = await navigator.clipboard.readText();
+    // console.log(`clipboardTextByReadText: ${clipboardTextByReadText}`);
+    console.log(`types: ${clipboard.clipboardData.types.join(",")}`);
     let clipboardText = clipboard.clipboardData.getData("text/plain");
+    console.log(`clipboardText: ${clipboardText}`);
     if (clipboardText == null || clipboardText == "") return;
 
     // If its not a URL, we return false to allow the default paste handler to take care of it.
@@ -134,6 +169,7 @@ export default class AutoLinkTitle extends Plugin {
       return;
     }
 
+    console.log(`pass url verification`)
     let selectedText = (EditorExtensions.getSelectedText(editor) || "").trim();
     if (selectedText && !this.settings.shouldReplaceSelection) {
       // If there is selected text and shouldReplaceSelection is false, do not fetch title
@@ -152,6 +188,7 @@ export default class AutoLinkTitle extends Plugin {
       return;
     }
 
+    console.log(`before convertUrlToTitledLink`);
     // At this point we're just pasting a link in a normal fashion, fetch its title.
     this.convertUrlToTitledLink(editor, clipboardText);
     return;
