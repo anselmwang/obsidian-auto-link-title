@@ -1,5 +1,5 @@
 import { EditorExtensions } from "editor-enhancements";
-import { Plugin, MarkdownView, Editor } from "obsidian";
+import { Plugin, MarkdownView, Editor, htmlToMarkdown } from "obsidian";
 import {
   AutoLinkTitleSettings,
   AutoLinkTitleSettingTab,
@@ -123,6 +123,21 @@ export default class AutoLinkTitle extends Plugin {
 
     let editor = this.getEditor();
     if (!editor) return;
+
+    // When copy url from address bar of Edge, Edge provides html format of link, including the title
+    // Such title is useful for intranet site, which AutoLinkTitle is not able to connect to
+    for(let type of clipboard.clipboardData.types)
+    {
+      if(type === "text/html")
+      {
+        const clipboardContents = htmlToMarkdown(clipboard.clipboardData.getData("text/html"))
+        const MD_LINK_RE = /^\[(.*?)\]\(.*?\)$/;
+        if(clipboardContents.match(MD_LINK_RE))
+        {
+          return;
+        }
+      }
+    }
 
     let clipboardText = clipboard.clipboardData.getData("text/plain");
     if (clipboardText == null || clipboardText == "") return;
